@@ -91,7 +91,7 @@ const commands = [
     .setName('server')
     .setDescription('Pause or unpause the entire server')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub.setName('pause').setDescription('Pause server').addStringOption(opt => opt.setName('reason').setDescription('Reason').setRequired(true)))
+    .addSubcommand(sub => sub.setName('pause').setDescription('Pause server').addStringOption(opt => opt.setName('reason').setDescription('Reason for pause').setRequired(true)))
     .addSubcommand(sub => sub.setName('unpause').setDescription('Unpause server')),
 
   new SlashCommandBuilder()
@@ -107,29 +107,39 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addUserOption(opt => opt.setName('user').setDescription('User to ban').setRequired(true))
     .addStringOption(opt => opt.setName('duration').setDescription('Ban duration e.g. 7d (leave blank for permanent)').setRequired(false))
-    .addStringOption(opt => opt.setName('reason').setDescription('Reason').setRequired(false)),
+    .addStringOption(opt => opt.setName('reason').setDescription('Reason for ban').setRequired(false)),
 
   new SlashCommandBuilder()
     .setName('timeout')
     .setDescription('Timeout a member')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addUserOption(opt => opt.setName('user').setDescription('User').setRequired(true))
+    .addUserOption(opt => opt.setName('user').setDescription('User to timeout').setRequired(true))
     .addStringOption(opt => opt.setName('duration').setDescription('Duration e.g. 1d, 30m').setRequired(true))
-    .addStringOption(opt => opt.setName('reason').setDescription('Reason').setRequired(false)),
+    .addStringOption(opt => opt.setName('reason').setDescription('Reason for timeout').setRequired(false)),
 
   new SlashCommandBuilder()
     .setName('warn')
     .setDescription('Warn a user')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addUserOption(opt => opt.setName('user').setDescription('User').setRequired(true))
-    .addStringOption(opt => opt.setName('reason').setDescription('Reason').setRequired(true)),
+    .addUserOption(opt => opt.setName('user').setDescription('User to warn').setRequired(true))
+    .addStringOption(opt => opt.setName('reason').setDescription('Reason for warning').setRequired(true)),
 
   new SlashCommandBuilder()
     .setName('role')
     .setDescription('Add or remove a role from a user')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub.setName('add').setDescription('Add role').addUserOption(o=>o.setName('user').setRequired(true)).addRoleOption(o=>o.setName('role').setRequired(true)))
-    .addSubcommand(sub => sub.setName('remove').setDescription('Remove role').addUserOption(o=>o.setName('user').setRequired(true)).addRoleOption(o=>o.setName('role').setRequired(true)))
+    .addSubcommand(sub => 
+      sub.setName('add')
+         .setDescription('Add role')
+         .addUserOption(o => o.setName('user').setDescription('Target user').setRequired(true))
+         .addRoleOption(o => o.setName('role').setDescription('Target role').setRequired(true))
+    )
+    .addSubcommand(sub => 
+      sub.setName('remove')
+         .setDescription('Remove role')
+         .addUserOption(o => o.setName('user').setDescription('Target user').setRequired(true))
+         .addRoleOption(o => o.setName('role').setDescription('Target role').setRequired(true))
+    )
 ].map(c => c.toJSON());
 
 client.once('ready', async () => {

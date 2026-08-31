@@ -1,7 +1,7 @@
 {
   "name": "donutt-guys-bot",
-  "version": "1.0.0",
-  "description": "Donutt Guys Bot - All-in-one Discord Bot",
+  "version": "2.0.0",
+  "description": "Donutt Guys Advanced Multi-Feature Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

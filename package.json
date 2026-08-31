@@ -1,0 +1,12 @@
+{
+  "name": "donutt-guys-bot",
+  "version": "1.0.0",
+  "description": "Donutt Guys Bot - All-in-one Discord Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1"
+  }
+}

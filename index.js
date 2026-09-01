@@ -33,8 +33,7 @@ function getGuildSettings(guildId) {
       ticketPanelTitle: 'Customer Support Tickets',
       ticketPanelDesc: 'Select an option or click below to open a private support ticket.',
       ticketFooter: 'Powered by Donutt Guys',
-      ticketType: 'dropdown', 
-      modLogId: null 
+      ticketType: 'dropdown'
     };
     saveDb();
   }
@@ -48,7 +47,6 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub => sub.setName('start').setDescription('Start giveaway').addStringOption(o=>o.setName('prize').setDescription('Prize').setRequired(true)).addIntegerOption(o=>o.setName('winners').setDescription('Winners').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 1h').setRequired(true)))
     .addSubcommand(sub => sub.setName('end').setDescription('End giveaway').addStringOption(o=>o.setName('message_id').setDescription('ID').setRequired(true)))
-    .addSubcommand(sub => sub.setName('reroll').setDescription('Reroll giveaway').addStringOption(o=>o.setName('message_id').setDescription('ID').setRequired(true)))
     .addSubcommand(sub => sub.setName('delete').setDescription('Delete giveaway record').addStringOption(o=>o.setName('message_id').setDescription('ID').setRequired(true))),
 
   new SlashCommandBuilder()
@@ -59,35 +57,17 @@ const commands = [
     .addSubcommand(sub => sub.setName('close').setDescription('Close ticket channel'))
     .addSubcommand(sub => sub.setName('delete').setDescription('Delete ticket channel')),
 
-  new SlashCommandBuilder()
-    .setName('stats')
-    .setDescription('Server statistics counter channels')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub.setName('create').setDescription('Build stat counter channels'))
-    .addSubcommand(sub => sub.setName('delete').setDescription('Remove stat counters')),
-
-  new SlashCommandBuilder()
-    .setName('pin')
-    .setDescription('Open multiline advanced embed builder form'),
-
+  new SlashCommandBuilder().setName('ban').setDescription('Ban user with universal appeal notice').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 7d').setRequired(false)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('kick').setDescription('Kick user with appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('timeout').setDescription('Timeout user with appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 30m').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('warn').setDescription('Warn user with auto-escalation and appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(true)),
+  
   new SlashCommandBuilder()
     .setName('sticky')
     .setDescription('Set a persistent sticky message at the bottom of a channel')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addChannelOption(o=>o.setName('channel').setDescription('Channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
-    .addStringOption(o=>o.setName('message').setDescription('Multiline message text').setRequired(true)),
-
-  new SlashCommandBuilder().setName('ban').setDescription('Ban user with universal appeal notice').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 7d').setRequired(false)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
-  new SlashCommandBuilder().setName('kick').setDescription('Kick user with appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
-  new SlashCommandBuilder().setName('timeout').setDescription('Timeout user with appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 30m').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
-  new SlashCommandBuilder().setName('warn').setDescription('Warn user with auto-escalation and appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(true)),
-
-  new SlashCommandBuilder()
-    .setName('channel')
-    .setDescription('Lock/Unlock channel')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub.setName('lock').setDescription('Lock'))
-    .addSubcommand(sub => sub.setName('unlock').setDescription('Unlock'))
+    .addStringOption(o=>o.setName('message').setDescription('Multiline message text').setRequired(true))
 ].map(c => c.toJSON());
 
 client.once('ready', async () => {
@@ -110,7 +90,6 @@ function buildTicketPanel(settings) {
     const menu = new StringSelectMenuBuilder()
       .setCustomId('ticket_dropdown')
       .setPlaceholder('Choose a support category...');
-    
     settings.ticketReasons.forEach((r, idx) => {
       menu.addOptions({ label: r, value: `ticket_opt_${idx}` });
     });
@@ -118,15 +97,73 @@ function buildTicketPanel(settings) {
   } else {
     const row = new ActionRowBuilder();
     settings.ticketReasons.slice(0, 5).forEach((r, idx) => {
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`ticket_btn_${idx}`)
-          .setLabel(r)
-          .setStyle(ButtonStyle.Primary)
-      );
+      row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${idx}`).setLabel(r).setStyle(ButtonStyle.Primary));
     });
     return { embeds: [embed], components: [row] };
   }
+}
+
+async function replyWithPunishmentEmbed(interaction, actionType, targetUser, reason, duration = null) {
+  const embed = new EmbedBuilder()
+    .setTitle(`🔨 Punishment Issued`)
+    .setColor('Red')
+    .addFields(
+      { name: 'Target User', value: `${targetUser} (${targetUser.tag})`, inline: true },
+      { name: 'Moderator', value: `${interaction.user} (${interaction.user.tag})`, inline: true },
+      { name: 'Action', value: actionType, inline: true },
+      { name: 'Reason', value: reason, inline: false }
+    )
+    .setTimestamp();
+  
+  if (duration) {
+    embed.addFields({ name: 'Duration / Expiration', value: duration, inline: true });
+  }
+
+  return interaction.reply({ embeds: [embed] });
+}
+
+async function sendPunishmentDM(user, type, guild, reason, expire) {
+  const embed = new EmbedBuilder()
+    .setTitle(`⚠️ Action taken against you in ${guild.name}`)
+    .setDescription(`**Punishment Type:** ${type}\n**Reason:** ${reason}\n**Expiration:** ${expire}\n\nYou can appeal this punishment securely via the button below.`)
+    .setColor('Red')
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`open_appeal_form_${guild.id}`).setLabel('Appeal Punishment').setStyle(ButtonStyle.Primary)
+  );
+
+  await user.send({ embeds: [embed], components: [row] }).catch(()=>{});
+}
+
+async function createSupportTicket(interaction, formReason) {
+  const ticketChan = await interaction.guild.channels.create({
+    name: `ticket-${interaction.user.username}`,
+    type: ChannelType.GuildText,
+    permissionOverwrites: [
+      { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+      { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+    ]
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle('🎫 Support Ticket Opened')
+    .setColor('Green')
+    .addFields(
+      { name: 'Requested By', value: `${interaction.user} (${interaction.user.tag})`, inline: false },
+      { name: 'Category / Reason', value: formReason, inline: false },
+      { name: 'Claimed By', value: 'Unclaimed', inline: false }
+    )
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('claim_ticket').setLabel('Claim Ticket').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
+  );
+
+  await ticketChan.send({ content: `Welcome ${interaction.user}! Staff will assist you shortly.`, embeds: [embed], components: [row] });
+  return interaction.reply({ content: `Your support ticket has been opened: ${ticketChan}`, ephemeral: true });
 }
 
 client.on('interactionCreate', async interaction => {
@@ -145,7 +182,7 @@ client.on('interactionCreate', async interaction => {
 
           const embed = new EmbedBuilder()
             .setTitle('⚙️ Ticket Panel Setup Dashboard')
-            .setDescription(`Configuring panel for target channel: ${chan}\n\nUse the buttons below to customize your ticket panel properties or add/remove options. Once done, click **Deploy Panel**!`)
+            .setDescription(`Configuring panel for target channel: ${chan}\n\nUse the buttons below to customize your ticket panel properties or add/remove options. Once you are done, click **Deploy Panel**!`)
             .setColor('DarkButNotBlack');
 
           const row1 = new ActionRowBuilder().addComponents(
@@ -163,46 +200,16 @@ client.on('interactionCreate', async interaction => {
 
           return interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
         }
-        else if (sub === 'close') {
+        else if (sub === 'close' || sub === 'delete') {
           if (!interaction.guild) return;
-          if (!interaction.channel.name.startsWith('ticket-') && !interaction.channel.name.startsWith('appeal-')) return interaction.reply({ content: 'Not a ticket channel.', ephemeral: true });
-          await interaction.reply({ content: 'Closing ticket in 3 seconds...' });
+          if (!interaction.channel.name.startsWith('ticket-') && !interaction.channel.name.startsWith('appeal-')) {
+            return interaction.reply({ content: 'Not a valid ticket channel.', ephemeral: true });
+          }
+          await interaction.reply({ content: 'Closing channel in 3 seconds...' });
           setTimeout(() => interaction.channel.delete().catch(()=>{}), 3000);
-        }
-        else if (sub === 'delete') {
-          if (!interaction.guild) return;
-          if (!interaction.channel.name.startsWith('ticket-') && !interaction.channel.name.startsWith('appeal-')) return interaction.reply({ content: 'Not a ticket channel.', ephemeral: true });
-          await interaction.channel.delete().catch(()=>{});
         }
       }
 
-      else if (commandName === 'giveaway' && sub === 'start') {
-        const prize = options.getString('prize');
-        const winners = options.getInteger('winners');
-        const duration = options.getString('duration');
-        const embed = new EmbedBuilder().setTitle('🎉 EPIC GIVEAWAY 🎉').setDescription(`Prize: **${prize}**\nWinners: **${winners}**\nHost: ${interaction.user}\nClick below to participate!`).setColor('Gold').setTimestamp();
-        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('enter_gw').setLabel('🎉 Enter Giveaway').setStyle(ButtonStyle.Success));
-        await interaction.reply({ content: 'Giveaway active!', ephemeral: true });
-        const msg = await interaction.channel.send({ embeds: [embed], components: [row] });
-        db.giveaways[msg.id] = { prize, winners, entrants: [] };
-        saveDb();
-      }
-      else if (commandName === 'pin') {
-        const modal = new ModalBuilder().setCustomId('pinpal_modal').setTitle('Multiline Embed PinPal Builder');
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('pin_title').setLabel('Embed Title').setStyle(TextInputStyle.Short).setRequired(true)),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('pin_body').setLabel('Multiline Content (supports \\n)').setStyle(TextInputStyle.Paragraph).setRequired(true))
-        );
-        return interaction.showModal(modal);
-      }
-      else if (commandName === 'sticky') {
-        const ch = options.getChannel('channel');
-        const text = options.getString('message');
-        if (!db.sticky[interaction.guildId]) db.sticky[interaction.guildId] = {};
-        db.sticky[interaction.guildId][ch.id] = text;
-        saveDb();
-        return interaction.reply({ content: `Sticky message set for ${ch}.`, ephemeral: true });
-      }
       else if (commandName === 'ban' || commandName === 'kick' || commandName === 'timeout' || commandName === 'warn') {
         const user = options.getUser('user');
         const reason = options.getString('reason') || 'No reason provided';
@@ -211,31 +218,31 @@ client.on('interactionCreate', async interaction => {
         if (commandName === 'ban') {
           const durationStr = options.getString('duration');
           let expireStr = durationStr ? `Expires in ${durationStr}` : 'Permanent';
-          if (!member) return interaction.reply({ content: 'User not found.', ephemeral: true });
+          if (!member) return interaction.reply({ content: 'User not found in server.', ephemeral: true });
           try { await sendPunishmentDM(user, 'Ban', interaction.guild, reason, expireStr); } catch(e){}
           try { await member.ban({ reason }); } catch(err) {
-            return interaction.reply({ content: `❌ Failed to ban: Missing permissions.`, ephemeral: true });
+            return interaction.reply({ content: `❌ Failed to ban user (Missing permissions).`, ephemeral: true });
           }
-          return interaction.reply({ content: `Successfully banned ${user.tag}.`, ephemeral: true });
+          return replyWithPunishmentEmbed(interaction, 'Ban', user, reason, expireStr);
         }
         if (commandName === 'kick') {
-          if (!member) return interaction.reply({ content: 'User not found.', ephemeral: true });
+          if (!member) return interaction.reply({ content: 'User not found in server.', ephemeral: true });
           try { await sendPunishmentDM(user, 'Kick', interaction.guild, reason, 'Never'); } catch(e){}
           try { await member.kick(reason); } catch(err) {
-            return interaction.reply({ content: `❌ Failed to kick.`, ephemeral: true });
+            return interaction.reply({ content: `❌ Failed to kick user.`, ephemeral: true });
           }
-          return interaction.reply({ content: `Successfully kicked ${user.tag}.`, ephemeral: true });
+          return replyWithPunishmentEmbed(interaction, 'Kick', user, reason);
         }
         if (commandName === 'timeout') {
           const durationStr = options.getString('duration');
-          if (!member) return interaction.reply({ content: 'Member not found.', ephemeral: true });
+          if (!member) return interaction.reply({ content: 'User not found in server.', ephemeral: true });
           let ms = durationStr.includes('h') ? parseInt(durationStr)*3600000 : parseInt(durationStr)*60000;
           let expireStr = new Date(Date.now() + ms).toUTCString();
           try { await member.timeout(ms, reason); } catch(err) {
-            return interaction.reply({ content: `❌ Failed to timeout: Missing permissions.`, ephemeral: true });
+            return interaction.reply({ content: `❌ Failed to timeout user.`, ephemeral: true });
           }
           try { await sendPunishmentDM(user, 'Timeout', interaction.guild, reason, expireStr); } catch(e){}
-          return interaction.reply({ content: `Timed out ${user.tag}.`, ephemeral: true });
+          return replyWithPunishmentEmbed(interaction, 'Timeout', user, reason, durationStr);
         }
         if (commandName === 'warn') {
           if (!db.warnings[interaction.guildId]) db.warnings[interaction.guildId] = {};
@@ -244,7 +251,7 @@ client.on('interactionCreate', async interaction => {
           let count = db.warnings[interaction.guildId][user.id].length;
           saveDb();
           try { await sendPunishmentDM(user, `Warning #${count}`, interaction.guild, reason, 'Active Record'); } catch(e){}
-          return interaction.reply({ content: `Warned ${user.tag} successfully (Total: ${count}).`, ephemeral: true });
+          return replyWithPunishmentEmbed(interaction, `Warning (#${count})`, user, reason);
         }
       }
     }
@@ -272,14 +279,16 @@ client.on('interactionCreate', async interaction => {
         saveDb();
         return interaction.reply({ content: `✅ Added option: "**${newOpt}**"`, ephemeral: true });
       }
-      if (interaction.customId === 'appeal_modal') {
+      if (interaction.customId.startsWith('appeal_modal_')) {
+        const targetGuildId = interaction.customId.replace('appeal_modal_', '');
+        const guild = client.guilds.cache.get(targetGuildId) || await client.guilds.fetch(targetGuildId).catch(() => null);
+        
+        if (!guild) return interaction.reply({ content: 'Error submitting appeal: Shared server context not found.', ephemeral: true });
+
         const why = interaction.fields.getTextInputValue('appeal_why');
         const desc = interaction.fields.getTextInputValue('appeal_desc');
         
-        const guild = client.guilds.cache.first();
-        if (!guild) return interaction.reply({ content: 'Error filing appeal: Bot is not in a shared server.', ephemeral: true });
-
-        // IMPORTANT FIX: Punished user cannot view this channel
+        // Staff channel creation: Punished user cannot view
         const appealChan = await guild.channels.create({
           name: `appeal-${interaction.user.username}`,
           type: ChannelType.GuildText,
@@ -289,18 +298,26 @@ client.on('interactionCreate', async interaction => {
           ]
         });
 
+        const appealEmbed = new EmbedBuilder()
+          .setTitle('📋 Universal Punishment Appeal Received')
+          .setColor('Orange')
+          .addFields(
+            { name: 'Appealing User', value: `${interaction.user} (${interaction.user.tag})`, inline: false },
+            { name: 'Why Overturn?', value: why, inline: false },
+            { name: 'Full Context', value: desc, inline: false }
+          )
+          .setTimestamp();
+
         const closeRow = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('close_appeal_btn').setLabel('Close Appeal Ticket').setStyle(ButtonStyle.Danger)
         );
 
-        await appealChan.send({ content: `📋 **Universal Punishment Appeal** from <@${interaction.user.id}>\n**Why appeal:** ${why}\n**Description:** ${desc}`, components: [closeRow] });
+        await appealChan.send({ embeds: [appealEmbed], components: [closeRow] });
         db.appeals[appealChan.id] = { userId: interaction.user.id, guildId: guild.id };
         saveDb();
 
-        // Send requested confirmation text to user DM
         await interaction.user.send(`**This DM is linked to ${guild.name}**\nText this bot to speak to an admin`).catch(()=>{});
-
-        return interaction.reply({ content: 'Your appeal has been securely submitted to our staff team! Check your DMs for status confirmation.', ephemeral: true });
+        return interaction.reply({ content: 'Your appeal has been securely submitted! Check your DMs to communicate with staff.', ephemeral: true });
       }
     }
 
@@ -353,7 +370,7 @@ client.on('interactionCreate', async interaction => {
 
         const panelPayload = buildTicketPanel(guildSettings);
         await targetChan.send(panelPayload);
-        return interaction.reply({ content: `🚀 Successfully deployed the custom ticket panel into ${targetChan}!`, ephemeral: true });
+        return interaction.reply({ content: `🚀 Successfully deployed ticket panel into ${targetChan}!`, ephemeral: true });
       }
 
       if (interaction.customId.startsWith('ticket_btn_')) {
@@ -368,17 +385,18 @@ client.on('interactionCreate', async interaction => {
         embed.spliceFields(2, 1, { name: 'Claimed By', value: `${interaction.user} (${interaction.user.tag})`, inline: false });
         
         const claimedRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('claim_ticket').setLabel(`Claimed by ${interaction.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
+          new ButtonBuilder().setCustomId('claimed_btn').setLabel(`Claimed by ${interaction.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
           new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
         );
 
         await interaction.update({ embeds: [embed], components: [claimedRow] });
-        await interaction.followUp({ content: `✅ Ticket claimed successfully by ${interaction.user}.`, ephemeral: true });
+        await interaction.followUp({ content: `✅ Ticket claimed by ${interaction.user}.`, ephemeral: true });
         return;
       }
 
-      if (interaction.customId === 'open_appeal_form') {
-        const modal = new ModalBuilder().setCustomId('appeal_modal').setTitle('Punishment Appeal Form');
+      if (interaction.customId.startsWith('open_appeal_form_')) {
+        const guildId = interaction.customId.replace('open_appeal_form_', '');
+        const modal = new ModalBuilder().setCustomId(`appeal_modal_${guildId}`).setTitle('Punishment Appeal Form');
         modal.addComponents(
           new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('appeal_why').setLabel('Why should this be overturned?').setStyle(TextInputStyle.Short).setRequired(true)),
           new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('appeal_desc').setLabel('Provide full context').setStyle(TextInputStyle.Paragraph).setRequired(true))
@@ -388,51 +406,22 @@ client.on('interactionCreate', async interaction => {
 
       if (interaction.customId === 'close_ticket_btn' || interaction.customId === 'close_appeal_btn') {
         if (!interaction.guild) return;
-        await interaction.reply({ content: 'Closing channel...' });
+        await interaction.reply({ content: 'Closing channel in 2 seconds...' });
         setTimeout(() => interaction.channel.delete().catch(()=>{}), 2000);
       }
     }
   } catch (err) {
-    console.error(err);
+    console.error('Interaction Execution Error:', err);
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: 'An execution error occurred.', ephemeral: true }).catch(()=>{});
     }
   }
 });
 
-async function createSupportTicket(interaction, formReason) {
-  const ticketChan = await interaction.guild.channels.create({
-    name: `ticket-${interaction.user.username}`,
-    type: ChannelType.GuildText,
-    permissionOverwrites: [
-      { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-      { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-      { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
-    ]
-  });
-
-  const embed = new EmbedBuilder()
-    .setTitle('🎫 Support Ticket Created')
-    .addFields(
-      { name: 'Requested By', value: `${interaction.user} (${interaction.user.tag})`, inline: false },
-      { name: 'Form Result / Category', value: formReason, inline: false },
-      { name: 'Claimed By', value: 'None (Unclaimed)', inline: false }
-    )
-    .setColor('Green')
-    .setTimestamp();
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('claim_ticket').setLabel('Claim Ticket').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
-  );
-
-  await ticketChan.send({ content: `Welcome ${interaction.user}! Staff will be with you shortly.`, embeds: [embed], components: [row] });
-  return interaction.reply({ content: `Your support ticket has been opened: ${ticketChan}`, ephemeral: true });
-}
-
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
+  // Sticky Message Handling
   if (message.guild && db.sticky[message.guildId]?.[message.channel.id]) {
     setTimeout(async () => {
       try {
@@ -445,14 +434,14 @@ client.on('messageCreate', async message => {
     }, 1500);
   }
 
-  // DM Appeal Bridge to Staff Channel
+  // User DM -> Staff Ticket Channel Bridge
   if (!message.guild && db.appeals) {
     for (const [chanId, data] of Object.entries(db.appeals)) {
       if (data.userId === message.author.id) {
         const guild = client.guilds.cache.get(data.guildId);
         const channel = guild?.channels.cache.get(chanId);
         if (channel) {
-          await channel.send(`**${message.author.username}** (Appealing User) - ${message.content}`);
+          await channel.send(`**${message.author.username}** (Appealing User): ${message.content}`);
           await message.react('✅').catch(()=>{});
           return;
         }
@@ -460,7 +449,7 @@ client.on('messageCreate', async message => {
     }
   }
 
-  // Staff Ticket Channel to User DM Bridge
+  // Staff Ticket Channel -> User DM Bridge
   if (message.guild && db.appeals[message.channel.id]) {
     const data = db.appeals[message.channel.id];
     const user = await client.users.fetch(data.userId).catch(()=>{});
@@ -470,19 +459,5 @@ client.on('messageCreate', async message => {
     }
   }
 });
-
-async function sendPunishmentDM(user, type, guild, reason, expire) {
-  const embed = new EmbedBuilder()
-    .setTitle(`⚠️ Action taken against you in ${guild.name}`)
-    .setDescription(`**Punishment Type:** ${type}\n**Reason:** ${reason}\n**Expiration:** ${expire}\n\nYou can appeal this punishment securely via the button below.`)
-    .setColor('Red')
-    .setTimestamp();
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('open_appeal_form').setLabel('Appeal Punishment').setStyle(ButtonStyle.Primary)
-  );
-
-  await user.send({ embeds: [embed], components: [row] }).catch(()=>{});
-}
 
 client.login(process.env.DISCORD_TOKEN);

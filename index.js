@@ -39,9 +39,6 @@ function getGuildSettings(guildId) {
   return db.settings[guildId];
 }
 
-// ----------------------------------------------------------------------
-// SLASH COMMAND REGISTRATION
-// ----------------------------------------------------------------------
 const commands = [
   new SlashCommandBuilder()
     .setName('giveaway')
@@ -56,7 +53,7 @@ const commands = [
     .setName('ticket')
     .setDescription('Enterprise Ticket system suite')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub.setName('setup').setDescription('Deploy custom ticket panel with user-defined message').addChannelOption(o=>o.setName('channel').setDescription('Target channel').addChannelTypes(ChannelType.GuildText).setRequired(true)).addStringOption(o=>o.setName('title').setDescription('Panel Embed Title').setRequired(false)).addStringOption(o=>o.setName('description').setDescription('Panel Embed Message Text').setRequired(false)))
+    .addSubcommand(sub => sub.setName('setup').setDescription('Deploy custom ticket panel').addChannelOption(o=>o.setName('channel').setDescription('Target channel').addChannelTypes(ChannelType.GuildText).setRequired(true)).addStringOption(o=>o.setName('title').setDescription('Panel Embed Title').setRequired(false)).addStringOption(o=>o.setName('description').setDescription('Panel Embed Message Text').setRequired(false)))
     .addSubcommand(sub => sub.setName('close').setDescription('Close ticket channel'))
     .addSubcommand(sub => sub.setName('delete').setDescription('Delete ticket channel')),
 
@@ -109,9 +106,6 @@ client.once('ready', async () => {
   } catch (e) { console.error(e); }
 });
 
-// ----------------------------------------------------------------------
-// INTERACTION ROUTER & ENGINE
-// ----------------------------------------------------------------------
 client.on('interactionCreate', async interaction => {
   if (!interaction.guild) return;
   const guildSettings = getGuildSettings(interaction.guildId);
@@ -166,7 +160,7 @@ client.on('interactionCreate', async interaction => {
 
           const row = new ActionRowBuilder().addComponents(menu);
           await chan.send({ embeds: [embed], components: [row] });
-          return interaction.reply({ content: `Enterprise ticket panel deployed in ${chan} with your custom messages and options!`, ephemeral: true });
+          return interaction.reply({ content: `Enterprise ticket panel deployed in ${chan}!`, ephemeral: true });
         }
         else if (sub === 'close') {
           if (!interaction.channel.name.startsWith('ticket-') && !interaction.channel.name.startsWith('appeal-')) return interaction.reply({ content: 'Not a ticket channel.', ephemeral: true });
@@ -258,27 +252,37 @@ client.on('interactionCreate', async interaction => {
           let expireStr = durationStr ? `Expires in ${durationStr}` : 'Permanent';
           if (!member) return interaction.reply({ content: 'User not found.', ephemeral: true });
           
-          await sendPunishmentDM(user, 'Ban', interaction.guild.name, reason, expireStr);
-          await member.ban({ reason });
+          try { await sendPunishmentDM(user, 'Ban', interaction.guild.name, reason, expireStr); } catch(e){}
+          try { await member.ban({ reason }); } catch(err) {
+            return interaction.reply({ content: `❌ Failed to ban: Missing permissions or role hierarchy issue.`, ephemeral: true });
+          }
           logModeration(interaction.guild, 'Banned', user, interaction.user, `${reason} (${expireStr})`);
-          return interaction.reply({ content: `Successfully banned ${user.tag}. Universal appeal bridge dispatched via DM.`, ephemeral: true });
+          return interaction.reply({ content: `Successfully banned ${user.tag}.`, ephemeral: true });
         }
         if (commandName === 'kick') {
           if (!member) return interaction.reply({ content: 'User not found.', ephemeral: true });
-          await sendPunishmentDM(user, 'Kick', interaction.guild.name, reason, 'Never');
-          await member.kick(reason);
+          try { await sendPunishmentDM(user, 'Kick', interaction.guild.name, reason, 'Never'); } catch(e){}
+          try { await member.kick(reason); } catch(err) {
+            return interaction.reply({ content: `❌ Failed to kick: Missing permissions.`, ephemeral: true });
+          }
           logModeration(interaction.guild, 'Kicked', user, interaction.user, reason);
-          return interaction.reply({ content: `Successfully kicked ${user.tag}. Appeal DM dispatched.`, ephemeral: true });
+          return interaction.reply({ content: `Successfully kicked ${user.tag}.`, ephemeral: true });
         }
         if (commandName === 'timeout') {
           const durationStr = options.getString('duration');
           if (!member) return interaction.reply({ content: 'Member not found.', ephemeral: true });
           let ms = durationStr.includes('h') ? parseInt(durationStr)*3600000 : parseInt(durationStr)*60000;
           let expireStr = new Date(Date.now() + ms).toUTCString();
-          await member.timeout(ms, reason);
-          await sendPunishmentDM(user, 'Timeout', interaction.guild.name, reason, expireStr);
+          
+          try {
+            await member.timeout(ms, reason);
+          } catch(err) {
+            return interaction.reply({ content: `❌ Failed to timeout: Bot lacks the "Moderate Members" permission or user has a higher role!`, ephemeral: true });
+          }
+
+          try { await sendPunishmentDM(user, 'Timeout', interaction.guild.name, reason, expireStr); } catch(e){}
           logModeration(interaction.guild, 'Timeout', user, interaction.user, `${reason} (Until: ${expireStr})`);
-          return interaction.reply({ content: `Timed out ${user.tag} for ${durationStr}. Appeal DM dispatched.`, ephemeral: true });
+          return interaction.reply({ content: `Timed out ${user.tag} for ${durationStr}.`, ephemeral: true });
         }
         if (commandName === 'warn') {
           if (!db.warnings[interaction.guildId]) db.warnings[interaction.guildId] = {};
@@ -287,14 +291,13 @@ client.on('interactionCreate', async interaction => {
           let count = db.warnings[interaction.guildId][user.id].length;
           saveDb();
 
-          await sendPunishmentDM(user, `Warning #${count}`, interaction.guild.name, reason, 'Active Record');
+          try { await sendPunishmentDM(user, `Warning #${count}`, interaction.guild.name, reason, 'Active Record'); } catch(e){}
           logModeration(interaction.guild, `Warning #${count}`, user, interaction.user, reason);
 
           if (count >= 2 && member) {
-            await member.timeout(24*3600000, 'Auto-escalation: 2 warnings reached.');
-            interaction.followUp({ content: `User reached 2 warnings and was automatically isolated via timeout for 24h.`, ephemeral: true });
+            try { await member.timeout(24*3600000, 'Auto-escalation: 2 warnings reached.'); } catch(e){}
           }
-          return interaction.reply({ content: `Warned ${user.tag} successfully (Total: ${count}). Universal appeal DM dispatched.`, ephemeral: true });
+          return interaction.reply({ content: `Warned ${user.tag} successfully (Total: ${count}).`, ephemeral: true });
         }
       }
 
@@ -309,7 +312,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // --- MODAL SUBMISSIONS ---
     else if (interaction.isModalSubmit()) {
       if (interaction.customId === 'pinpal_modal') {
         const title = interaction.fields.getTextInputValue('pin_title');
@@ -355,12 +357,9 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // --- SELECT MENUS & BUTTON ROUTING ---
     else if (interaction.isStringSelectMenu()) {
       if (interaction.customId === 'ticket_dropdown') {
         const reasonChoice = interaction.values[0];
-        let categoryName = reasonChoice; 
-        
         const ticketChan = await interaction.guild.channels.create({
           name: `ticket-${interaction.user.username}`,
           type: ChannelType.GuildText,
@@ -375,7 +374,7 @@ client.on('interactionCreate', async interaction => {
           new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
         );
 
-        await ticketChan.send({ content: `Welcome ${interaction.user}!\n**Selected Category:** Ticket Created Successfully\nStaff will assist you shortly.`, components: [row] });
+        await ticketChan.send({ content: `Welcome ${interaction.user}!\n**Category Selected:** Ticket Created Successfully\nStaff will assist you shortly.`, components: [row] });
         return interaction.reply({ content: `Your support ticket has been opened: ${ticketChan}`, ephemeral: true });
       }
     }
@@ -430,9 +429,6 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// ----------------------------------------------------------------------
-// PERSISTENT STICKY MESSAGES & UNIVERSAL DM BRIDGES
-// ----------------------------------------------------------------------
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
@@ -448,7 +444,6 @@ client.on('messageCreate', async message => {
     }, 1500);
   }
 
-  // User DM to Staff Ticket Channel Bridge
   if (!message.guild && db.appeals) {
     for (const [chanId, data] of Object.entries(db.appeals)) {
       if (data.userId === message.author.id) {
@@ -463,7 +458,6 @@ client.on('messageCreate', async message => {
     }
   }
 
-  // Staff Ticket Channel to User DM Bridge
   if (message.guild && db.appeals[message.channel.id]) {
     const data = db.appeals[message.channel.id];
     const user = await client.users.fetch(data.userId).catch(()=>{});

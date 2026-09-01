@@ -1,6 +1,6 @@
 {
   "name": "donutt-guys-bot",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Donutt Guys Ultimate Enterprise Bot Suite",
   "main": "index.js",
   "scripts": {

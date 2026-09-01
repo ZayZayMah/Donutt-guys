@@ -33,7 +33,7 @@ function getGuildSettings(guildId) {
       ticketPanelTitle: 'Customer Support Tickets',
       ticketPanelDesc: 'Select an option or click below to open a private support ticket.',
       ticketFooter: 'Powered by Donutt Guys',
-      ticketType: 'dropdown', // 'dropdown' or 'buttons'
+      ticketType: 'dropdown', 
       modLogId: null 
     };
     saveDb();
@@ -95,11 +95,10 @@ client.once('ready', async () => {
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('Successfully registered updated commands.');
+    console.log('Successfully registered commands.');
   } catch (e) { console.error(e); }
 });
 
-// Helper function to build the live ticket panel preview/payload
 function buildTicketPanel(settings) {
   const embed = new EmbedBuilder()
     .setTitle(`🎫 ${settings.ticketPanelTitle}`)
@@ -117,7 +116,6 @@ function buildTicketPanel(settings) {
     });
     return { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] };
   } else {
-    // Buttons layout
     const row = new ActionRowBuilder();
     settings.ticketReasons.slice(0, 5).forEach((r, idx) => {
       row.addComponents(
@@ -147,7 +145,7 @@ client.on('interactionCreate', async interaction => {
 
           const embed = new EmbedBuilder()
             .setTitle('⚙️ Ticket Panel Setup Dashboard')
-            .setDescription(`Configuring panel for target channel: ${chan}\n\nUse the buttons below to customize your ticket panel properties or add/remove options. Once you are done, click **Deploy Panel**!`)
+            .setDescription(`Configuring panel for target channel: ${chan}\n\nUse the buttons below to customize your ticket panel properties or add/remove options. Once done, click **Deploy Panel**!`)
             .setColor('DarkButNotBlack');
 
           const row1 = new ActionRowBuilder().addComponents(
@@ -178,7 +176,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // Other commands setup...
       else if (commandName === 'giveaway' && sub === 'start') {
         const prize = options.getString('prize');
         const winners = options.getInteger('winners');
@@ -215,7 +212,7 @@ client.on('interactionCreate', async interaction => {
           const durationStr = options.getString('duration');
           let expireStr = durationStr ? `Expires in ${durationStr}` : 'Permanent';
           if (!member) return interaction.reply({ content: 'User not found.', ephemeral: true });
-          try { await sendPunishmentDM(user, 'Ban', interaction.guild.name, reason, expireStr); } catch(e){}
+          try { await sendPunishmentDM(user, 'Ban', interaction.guild, reason, expireStr); } catch(e){}
           try { await member.ban({ reason }); } catch(err) {
             return interaction.reply({ content: `❌ Failed to ban: Missing permissions.`, ephemeral: true });
           }
@@ -223,7 +220,7 @@ client.on('interactionCreate', async interaction => {
         }
         if (commandName === 'kick') {
           if (!member) return interaction.reply({ content: 'User not found.', ephemeral: true });
-          try { await sendPunishmentDM(user, 'Kick', interaction.guild.name, reason, 'Never'); } catch(e){}
+          try { await sendPunishmentDM(user, 'Kick', interaction.guild, reason, 'Never'); } catch(e){}
           try { await member.kick(reason); } catch(err) {
             return interaction.reply({ content: `❌ Failed to kick.`, ephemeral: true });
           }
@@ -237,7 +234,7 @@ client.on('interactionCreate', async interaction => {
           try { await member.timeout(ms, reason); } catch(err) {
             return interaction.reply({ content: `❌ Failed to timeout: Missing permissions.`, ephemeral: true });
           }
-          try { await sendPunishmentDM(user, 'Timeout', interaction.guild.name, reason, expireStr); } catch(e){}
+          try { await sendPunishmentDM(user, 'Timeout', interaction.guild, reason, expireStr); } catch(e){}
           return interaction.reply({ content: `Timed out ${user.tag}.`, ephemeral: true });
         }
         if (commandName === 'warn') {
@@ -246,7 +243,7 @@ client.on('interactionCreate', async interaction => {
           db.warnings[interaction.guildId][user.id].push(reason);
           let count = db.warnings[interaction.guildId][user.id].length;
           saveDb();
-          try { await sendPunishmentDM(user, `Warning #${count}`, interaction.guild.name, reason, 'Active Record'); } catch(e){}
+          try { await sendPunishmentDM(user, `Warning #${count}`, interaction.guild, reason, 'Active Record'); } catch(e){}
           return interaction.reply({ content: `Warned ${user.tag} successfully (Total: ${count}).`, ephemeral: true });
         }
       }
@@ -279,16 +276,15 @@ client.on('interactionCreate', async interaction => {
         const why = interaction.fields.getTextInputValue('appeal_why');
         const desc = interaction.fields.getTextInputValue('appeal_desc');
         
-        // Find a valid guild from bot's cache where this user can appeal
         const guild = client.guilds.cache.first();
         if (!guild) return interaction.reply({ content: 'Error filing appeal: Bot is not in a shared server.', ephemeral: true });
 
+        // IMPORTANT FIX: Punished user cannot view this channel
         const appealChan = await guild.channels.create({
           name: `appeal-${interaction.user.username}`,
           type: ChannelType.GuildText,
           permissionOverwrites: [
             { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
             { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
           ]
         });
@@ -301,20 +297,24 @@ client.on('interactionCreate', async interaction => {
         db.appeals[appealChan.id] = { userId: interaction.user.id, guildId: guild.id };
         saveDb();
 
-        return interaction.reply({ content: 'Your appeal has been securely submitted to our staff team via a private ticket channel!', ephemeral: true });
+        // Send requested confirmation text to user DM
+        await interaction.user.send(`**This DM is linked to ${guild.name}**\nText this bot to speak to an admin`).catch(()=>{});
+
+        return interaction.reply({ content: 'Your appeal has been securely submitted to our staff team! Check your DMs for status confirmation.', ephemeral: true });
       }
     }
 
     // --- SELECT MENUS ---
     else if (interaction.isStringSelectMenu()) {
       if (interaction.customId === 'ticket_dropdown') {
-        await createSupportTicket(interaction, 'Ticket Created');
+        const indexVal = parseInt(interaction.values[0].replace('ticket_opt_', ''));
+        const reasonText = guildSettings.ticketReasons[indexVal] || 'General Support';
+        await createSupportTicket(interaction, reasonText);
       }
     }
 
     // --- BUTTONS ---
     else if (interaction.isButton()) {
-      // Ticket Panel Setup Dashboard Config Buttons
       if (interaction.customId === 'cfg_t_title') {
         const modal = new ModalBuilder().setCustomId('modal_t_title').setTitle('Edit Panel Title');
         modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('val').setLabel('New Title').setStyle(TextInputStyle.Short).setRequired(true)));
@@ -356,9 +356,25 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `🚀 Successfully deployed the custom ticket panel into ${targetChan}!`, ephemeral: true });
       }
 
-      // Public Ticket Button Interaction Handler
       if (interaction.customId.startsWith('ticket_btn_')) {
-        await createSupportTicket(interaction, 'Ticket Created');
+        const indexVal = parseInt(interaction.customId.replace('ticket_btn_', ''));
+        const reasonText = guildSettings.ticketReasons[indexVal] || 'General Support';
+        await createSupportTicket(interaction, reasonText);
+      }
+
+      if (interaction.customId === 'claim_ticket') {
+        const message = interaction.message;
+        const embed = EmbedBuilder.from(message.embeds[0]);
+        embed.spliceFields(2, 1, { name: 'Claimed By', value: `${interaction.user} (${interaction.user.tag})`, inline: false });
+        
+        const claimedRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('claim_ticket').setLabel(`Claimed by ${interaction.user.username}`).setStyle(ButtonStyle.Success).setDisabled(true),
+          new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
+        );
+
+        await interaction.update({ embeds: [embed], components: [claimedRow] });
+        await interaction.followUp({ content: `✅ Ticket claimed successfully by ${interaction.user}.`, ephemeral: true });
+        return;
       }
 
       if (interaction.customId === 'open_appeal_form') {
@@ -384,7 +400,7 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-async function createSupportTicket(interaction, titleText) {
+async function createSupportTicket(interaction, formReason) {
   const ticketChan = await interaction.guild.channels.create({
     name: `ticket-${interaction.user.username}`,
     type: ChannelType.GuildText,
@@ -395,11 +411,22 @@ async function createSupportTicket(interaction, titleText) {
     ]
   });
 
+  const embed = new EmbedBuilder()
+    .setTitle('🎫 Support Ticket Created')
+    .addFields(
+      { name: 'Requested By', value: `${interaction.user} (${interaction.user.tag})`, inline: false },
+      { name: 'Form Result / Category', value: formReason, inline: false },
+      { name: 'Claimed By', value: 'None (Unclaimed)', inline: false }
+    )
+    .setColor('Green')
+    .setTimestamp();
+
   const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('claim_ticket').setLabel('Claim Ticket').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
   );
 
-  await ticketChan.send({ content: `Welcome ${interaction.user}!\n**${titleText}**\nStaff will assist you shortly.`, components: [row] });
+  await ticketChan.send({ content: `Welcome ${interaction.user}! Staff will be with you shortly.`, embeds: [embed], components: [row] });
   return interaction.reply({ content: `Your support ticket has been opened: ${ticketChan}`, ephemeral: true });
 }
 
@@ -444,9 +471,9 @@ client.on('messageCreate', async message => {
   }
 });
 
-async function sendPunishmentDM(user, type, serverName, reason, expire) {
+async function sendPunishmentDM(user, type, guild, reason, expire) {
   const embed = new EmbedBuilder()
-    .setTitle(`⚠️ Action taken against you in ${serverName}`)
+    .setTitle(`⚠️ Action taken against you in ${guild.name}`)
     .setDescription(`**Punishment Type:** ${type}\n**Reason:** ${reason}\n**Expiration:** ${expire}\n\nYou can appeal this punishment securely via the button below.`)
     .setColor('Red')
     .setTimestamp();

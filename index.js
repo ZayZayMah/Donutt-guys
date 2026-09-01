@@ -24,11 +24,25 @@ function saveDb() {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 
+function getGuildSettings(guildId) {
+  if (!db.settings[guildId]) {
+    db.settings[guildId] = { 
+      ticketReasons: ['General Support', 'Billing Inquiry', 'Technical Issue'], 
+      ticketPanelTitle: 'Customer Support Tickets',
+      ticketPanelDesc: 'Select an option from the menu below to open a private support ticket.',
+      ticketRoleId: null,
+      ticketCategoryId: null,
+      modLogId: null 
+    };
+    saveDb();
+  }
+  return db.settings[guildId];
+}
+
 // ----------------------------------------------------------------------
-// ADVANCED SLASH COMMAND REGISTRATION
+// SLASH COMMAND REGISTRATION
 // ----------------------------------------------------------------------
 const commands = [
-  // GIVEAWAY SUITE
   new SlashCommandBuilder()
     .setName('giveaway')
     .setDescription('Advanced Giveaway management suite')
@@ -38,24 +52,21 @@ const commands = [
     .addSubcommand(sub => sub.setName('reroll').setDescription('Reroll giveaway').addStringOption(o=>o.setName('message_id').setDescription('ID').setRequired(true)))
     .addSubcommand(sub => sub.setName('delete').setDescription('Delete giveaway record').addStringOption(o=>o.setName('message_id').setDescription('ID').setRequired(true))),
 
-  // TICKET KING SUITE
   new SlashCommandBuilder()
     .setName('ticket')
-    .setDescription('Ticket management suite')
+    .setDescription('Enterprise Ticket system suite')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub.setName('setup').setDescription('Deploy advanced multi-reason ticket panel').addChannelOption(o=>o.setName('channel').setDescription('Target channel').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand(sub => sub.setName('setup').setDescription('Deploy custom ticket panel with user-defined message').addChannelOption(o=>o.setName('channel').setDescription('Target channel').addChannelTypes(ChannelType.GuildText).setRequired(true)).addStringOption(o=>o.setName('title').setDescription('Panel Embed Title').setRequired(false)).addStringOption(o=>o.setName('description').setDescription('Panel Embed Message Text').setRequired(false)))
     .addSubcommand(sub => sub.setName('close').setDescription('Close ticket channel'))
     .addSubcommand(sub => sub.setName('delete').setDescription('Delete ticket channel')),
 
-  // SERVERSTATS SUITE
   new SlashCommandBuilder()
     .setName('stats')
-    .setDescription('ServerStats analytics counter channels')
+    .setDescription('Server statistics counter channels')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub => sub.setName('create').setDescription('Build stat counter channels'))
     .addSubcommand(sub => sub.setName('delete').setDescription('Remove stat counters')),
 
-  // PINPAL SUITE
   new SlashCommandBuilder()
     .setName('pin')
     .setDescription('Open multiline advanced embed builder form'),
@@ -67,20 +78,18 @@ const commands = [
     .addChannelOption(o=>o.setName('channel').setDescription('Channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
     .addStringOption(o=>o.setName('message').setDescription('Multiline message text').setRequired(true)),
 
-  // GRANULAR SETTINGS SUITES
   new SlashCommandBuilder()
     .setName('settings')
     .setDescription('Configure module settings panels')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(sub => sub.setName('tickets').setDescription('Configure ticket categories & staff roles'))
+    .addSubcommand(sub => sub.setName('tickets').setDescription('Configure ticket dropdown categories, custom text & staff roles'))
     .addSubcommand(sub => sub.setName('welcomer').setDescription('Configure Welcomer cards & messages'))
-    .addSubcommand(sub => sub.setName('moderation').setDescription('Configure Wick/Censor automod & logging channels'))
+    .addSubcommand(sub => sub.setName('moderation').setDescription('Configure automod filter rules & audit logs'))
     .addSubcommand(sub => sub.setName('roles').setDescription('Configure reaction-role panels & autoroles')),
 
-  // WICK / CENSOR MODERATION SUITE (Universal Appeal Support)
-  new SlashCommandBuilder().setName('ban').setDescription('Ban user with appeal notice').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 7d').setRequired(false)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
-  new SlashCommandBuilder().setName('kick').setDescription('Kick user').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
-  new SlashCommandBuilder().setName('timeout').setDescription('Timeout user').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 30m').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('ban').setDescription('Ban user with universal appeal notice').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 7d').setRequired(false)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('kick').setDescription('Kick user with appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('timeout').setDescription('Timeout user with appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('duration').setDescription('Duration e.g. 30m').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(false)),
   new SlashCommandBuilder().setName('warn').setDescription('Warn user with auto-escalation and appeal bridge').addUserOption(o=>o.setName('user').setDescription('User').setRequired(true)).addStringOption(o=>o.setName('reason').setDescription('Reason').setRequired(true)),
 
   new SlashCommandBuilder()
@@ -96,17 +105,16 @@ client.once('ready', async () => {
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log('Successfully registered complex production commands with universal punishment appeals.');
+    console.log('Successfully registered complex enterprise commands.');
   } catch (e) { console.error(e); }
 });
 
 // ----------------------------------------------------------------------
-// ADVANCED EVENT PROCESSING & CONTROLLERS
+// INTERACTION ROUTER & ENGINE
 // ----------------------------------------------------------------------
 client.on('interactionCreate', async interaction => {
   if (!interaction.guild) return;
-  if (!db.settings[interaction.guildId]) db.settings[interaction.guildId] = { ticketRoles: [], ticketReasons: ['General Support', 'Billing Issue', 'Report User'] };
-  const guildSettings = db.settings[interaction.guildId];
+  const guildSettings = getGuildSettings(interaction.guildId);
 
   try {
     if (interaction.isChatInputCommand()) {
@@ -143,15 +151,22 @@ client.on('interactionCreate', async interaction => {
       else if (commandName === 'ticket') {
         if (sub === 'setup') {
           const chan = options.getChannel('channel');
-          const reasons = guildSettings.ticketReasons || ['General Support', 'Billing Issue', 'Report User'];
+          const customTitle = options.getString('title') || guildSettings.ticketPanelTitle;
+          const customDesc = options.getString('description') || guildSettings.ticketPanelDesc;
           
-          const embed = new EmbedBuilder().setTitle('🎫 Customer Support Tickets').setDescription('Select a category from the dropdown menu below to open a private ticket channel.').setColor('Blurple');
-          const menu = new StringSelectMenuBuilder().setCustomId('ticket_dropdown').setPlaceholder('Select ticket reason...');
+          guildSettings.ticketPanelTitle = customTitle;
+          guildSettings.ticketPanelDesc = customDesc;
+          saveDb();
+
+          const embed = new EmbedBuilder().setTitle(`🎫 ${customTitle}`).setDescription(customDesc).setColor('Blurple');
+          const menu = new StringSelectMenuBuilder().setCustomId('ticket_dropdown').setPlaceholder('Choose a ticket category...');
+          
+          const reasons = guildSettings.ticketReasons || ['General Support', 'Billing Inquiry', 'Technical Issue'];
           reasons.forEach((r, idx) => menu.addOptions({ label: r, value: `ticket_reason_${idx}` }));
 
           const row = new ActionRowBuilder().addComponents(menu);
           await chan.send({ embeds: [embed], components: [row] });
-          return interaction.reply({ content: `Advanced Ticket King panel successfully deployed in ${chan}!`, ephemeral: true });
+          return interaction.reply({ content: `Enterprise ticket panel deployed in ${chan} with your custom messages and options!`, ephemeral: true });
         }
         else if (sub === 'close') {
           if (!interaction.channel.name.startsWith('ticket-') && !interaction.channel.name.startsWith('appeal-')) return interaction.reply({ content: 'Not a ticket channel.', ephemeral: true });
@@ -197,7 +212,7 @@ client.on('interactionCreate', async interaction => {
         if (!db.sticky[interaction.guildId]) db.sticky[interaction.guildId] = {};
         db.sticky[interaction.guildId][ch.id] = text;
         saveDb();
-        return interaction.reply({ content: `Sticky PinPal message set for ${ch}. It will stay pinned to the bottom of the chat!`, ephemeral: true });
+        return interaction.reply({ content: `Sticky PinPal message set for ${ch}.`, ephemeral: true });
       }
 
       else if (commandName === 'settings') {
@@ -205,25 +220,27 @@ client.on('interactionCreate', async interaction => {
         const row = new ActionRowBuilder();
 
         if (sub === 'tickets') {
-          embed.setTitle('🎫 Ticket King Configuration Panel').setDescription('Manage your ticket system parameters, dropdown selections, and support roles.');
+          embed.setTitle('🎫 Ticket System Configuration')
+               .setDescription(`Manage your ticket options, roles, and panels.\n\n**Current Reasons:**\n${guildSettings.ticketReasons.map(r => `• ${r}`).join('\n')}`);
           row.addComponents(
-            new ButtonBuilder().setCustomId('cfg_ticket_reasons').setLabel('Edit Ticket Reasons').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('cfg_ticket_role').setLabel('Set Support Staff Role').setStyle(ButtonStyle.Secondary)
+            new ButtonBuilder().setCustomId('cfg_ticket_add_reason').setLabel('Add Dropdown Reason').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('cfg_ticket_clear_reasons').setLabel('Reset Reasons').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('cfg_ticket_role').setLabel('Set Staff Role').setStyle(ButtonStyle.Secondary)
           );
         } else if (sub === 'welcomer') {
-          embed.setTitle('👋 Welcomer Configuration Panel').setDescription('Manage automated member greeting style and cards.');
+          embed.setTitle('👋 Welcomer Configuration Panel').setDescription('Manage automated member greeting style.');
           row.addComponents(
             new ButtonBuilder().setCustomId('cfg_welcome_chan').setLabel('Set Welcome Channel').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('cfg_welcome_msg').setLabel('Edit Welcome Message String').setStyle(ButtonStyle.Secondary)
+            new ButtonBuilder().setCustomId('cfg_welcome_msg').setLabel('Edit Welcome Message').setStyle(ButtonStyle.Secondary)
           );
         } else if (sub === 'moderation') {
-          embed.setTitle('🛡️ Wick / Censor Bot Configuration').setDescription('Configure automated filter rules, auto-punishments, and audit logs.');
+          embed.setTitle('🛡️ Moderation & Logging Configuration').setDescription('Configure automated filter rules and audit logs.');
           row.addComponents(
             new ButtonBuilder().setCustomId('cfg_mod_log').setLabel('Set Audit Log Channel').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('cfg_automod').setLabel('Toggle Strict Automod').setStyle(ButtonStyle.Primary)
           );
         } else if (sub === 'roles') {
-          embed.setTitle('🎭 Reaction Roles Configuration Panel').setDescription('Setup interactive role assignment buttons.');
+          embed.setTitle('🎭 Reaction Roles Configuration').setDescription('Setup interactive role assignment buttons.');
           row.addComponents(
             new ButtonBuilder().setCustomId('cfg_add_rrole').setLabel('Create Reaction Role Button').setStyle(ButtonStyle.Secondary)
           );
@@ -244,14 +261,14 @@ client.on('interactionCreate', async interaction => {
           await sendPunishmentDM(user, 'Ban', interaction.guild.name, reason, expireStr);
           await member.ban({ reason });
           logModeration(interaction.guild, 'Banned', user, interaction.user, `${reason} (${expireStr})`);
-          return interaction.reply({ content: `Successfully banned ${user.tag}. Punishment DM and appeal option sent.`, ephemeral: true });
+          return interaction.reply({ content: `Successfully banned ${user.tag}. Universal appeal bridge dispatched via DM.`, ephemeral: true });
         }
         if (commandName === 'kick') {
           if (!member) return interaction.reply({ content: 'User not found.', ephemeral: true });
           await sendPunishmentDM(user, 'Kick', interaction.guild.name, reason, 'Never');
           await member.kick(reason);
           logModeration(interaction.guild, 'Kicked', user, interaction.user, reason);
-          return interaction.reply({ content: `Successfully kicked ${user.tag}. Punishment DM dispatched.`, ephemeral: true });
+          return interaction.reply({ content: `Successfully kicked ${user.tag}. Appeal DM dispatched.`, ephemeral: true });
         }
         if (commandName === 'timeout') {
           const durationStr = options.getString('duration');
@@ -261,7 +278,7 @@ client.on('interactionCreate', async interaction => {
           await member.timeout(ms, reason);
           await sendPunishmentDM(user, 'Timeout', interaction.guild.name, reason, expireStr);
           logModeration(interaction.guild, 'Timeout', user, interaction.user, `${reason} (Until: ${expireStr})`);
-          return interaction.reply({ content: `Timed out ${user.tag} for ${durationStr}.`, ephemeral: true });
+          return interaction.reply({ content: `Timed out ${user.tag} for ${durationStr}. Appeal DM dispatched.`, ephemeral: true });
         }
         if (commandName === 'warn') {
           if (!db.warnings[interaction.guildId]) db.warnings[interaction.guildId] = {};
@@ -270,7 +287,7 @@ client.on('interactionCreate', async interaction => {
           let count = db.warnings[interaction.guildId][user.id].length;
           saveDb();
 
-          await sendPunishmentDM(user, `Warning #${count}`, interaction.guild.name, reason, 'N/A Active Record');
+          await sendPunishmentDM(user, `Warning #${count}`, interaction.guild.name, reason, 'Active Record');
           logModeration(interaction.guild, `Warning #${count}`, user, interaction.user, reason);
 
           if (count >= 2 && member) {
@@ -302,6 +319,14 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: 'PinPal multiline embed sent successfully!', ephemeral: true });
       }
 
+      if (interaction.customId === 'ticket_reason_modal') {
+        const newReason = interaction.fields.getTextInputValue('reason_input');
+        if (!guildSettings.ticketReasons) guildSettings.ticketReasons = [];
+        guildSettings.ticketReasons.push(newReason);
+        saveDb();
+        return interaction.reply({ content: `Successfully added "**${newReason}**" as a ticket option!`, ephemeral: true });
+      }
+
       if (interaction.customId === 'appeal_modal') {
         const why = interaction.fields.getTextInputValue('appeal_why');
         const desc = interaction.fields.getTextInputValue('appeal_desc');
@@ -322,7 +347,7 @@ client.on('interactionCreate', async interaction => {
           new ButtonBuilder().setCustomId('close_appeal_btn').setLabel('Close Appeal Ticket').setStyle(ButtonStyle.Danger)
         );
 
-        await appealChan.send({ content: `📋 **New Universal Punishment Appeal** from <@${interaction.user.id}>\n**Why appeal:** ${why}\n**Description:** ${desc}`, components: [closeRow] });
+        await appealChan.send({ content: `📋 **Universal Punishment Appeal** from <@${interaction.user.id}>\n**Why appeal:** ${why}\n**Description:** ${desc}`, components: [closeRow] });
         db.appeals[appealChan.id] = { userId: interaction.user.id, guildId: guild.id };
         saveDb();
 
@@ -330,10 +355,12 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // --- SELECT MENUS & BUTTON INTERACTION ROUTING ---
+    // --- SELECT MENUS & BUTTON ROUTING ---
     else if (interaction.isStringSelectMenu()) {
       if (interaction.customId === 'ticket_dropdown') {
         const reasonChoice = interaction.values[0];
+        let categoryName = reasonChoice; 
+        
         const ticketChan = await interaction.guild.channels.create({
           name: `ticket-${interaction.user.username}`,
           type: ChannelType.GuildText,
@@ -348,7 +375,7 @@ client.on('interactionCreate', async interaction => {
           new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
         );
 
-        await ticketChan.send({ content: `Welcome ${interaction.user}!\n**Reason Category Selected:** ${reasonChoice}\nStaff will assist you shortly.`, components: [row] });
+        await ticketChan.send({ content: `Welcome ${interaction.user}!\n**Selected Category:** Ticket Created Successfully\nStaff will assist you shortly.`, components: [row] });
         return interaction.reply({ content: `Your support ticket has been opened: ${ticketChan}`, ephemeral: true });
       }
     }
@@ -361,6 +388,20 @@ client.on('interactionCreate', async interaction => {
         gw.entrants.push(interaction.user.id);
         saveDb();
         return interaction.reply({ content: '🎉 Entry confirmed!', ephemeral: true });
+      }
+
+      if (interaction.customId === 'cfg_ticket_add_reason') {
+        const modal = new ModalBuilder().setCustomId('ticket_reason_modal').setTitle('Add Ticket Reason Option');
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('reason_input').setLabel('Dropdown Option Name').setStyle(TextInputStyle.Short).setRequired(true))
+        );
+        return interaction.showModal(modal);
+      }
+
+      if (interaction.customId === 'cfg_ticket_clear_reasons') {
+        guildSettings.ticketReasons = ['General Support', 'Billing Inquiry', 'Technical Issue'];
+        saveDb();
+        return interaction.reply({ content: 'Ticket options reset to defaults.', ephemeral: true });
       }
 
       if (interaction.customId === 'open_appeal_form') {
@@ -378,7 +419,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (interaction.customId.startsWith('cfg_')) {
-        return interaction.reply({ content: '⚙️ Settings configuration updated in local database.', ephemeral: true });
+        return interaction.reply({ content: '⚙️ Configuration updated successfully.', ephemeral: true });
       }
     }
   } catch (err) {
@@ -390,12 +431,11 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ----------------------------------------------------------------------
-// PERSISTENT STICKY MESSAGES & PUNISHMENT DM BRIDGE
+// PERSISTENT STICKY MESSAGES & UNIVERSAL DM BRIDGES
 // ----------------------------------------------------------------------
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // Handle Sticky PinPal Messages
   if (message.guild && db.sticky[message.guildId]?.[message.channel.id]) {
     setTimeout(async () => {
       try {
@@ -408,7 +448,7 @@ client.on('messageCreate', async message => {
     }, 1500);
   }
 
-  // Handle Universal Appeal DMs bridging (User DMs -> Staff Channel)
+  // User DM to Staff Ticket Channel Bridge
   if (!message.guild && db.appeals) {
     for (const [chanId, data] of Object.entries(db.appeals)) {
       if (data.userId === message.author.id) {
@@ -423,7 +463,7 @@ client.on('messageCreate', async message => {
     }
   }
 
-  // Handle Staff replies bridging back to User DMs
+  // Staff Ticket Channel to User DM Bridge
   if (message.guild && db.appeals[message.channel.id]) {
     const data = db.appeals[message.channel.id];
     const user = await client.users.fetch(data.userId).catch(()=>{});
@@ -437,7 +477,7 @@ client.on('messageCreate', async message => {
 async function sendPunishmentDM(user, type, serverName, reason, expire) {
   const embed = new EmbedBuilder()
     .setTitle(`⚠️ Action taken against you in ${serverName}`)
-    .setDescription(`**Punishment Type:** ${type}\n**Reason:** ${reason}\n**Expiration:** ${expire}\n\nIf you believe this was a mistake, you can appeal this action below.`)
+    .setDescription(`**Punishment Type:** ${type}\n**Reason:** ${reason}\n**Expiration:** ${expire}\n\nYou can appeal this punishment securely via the button below.`)
     .setColor('Red')
     .setTimestamp();
 
@@ -449,7 +489,7 @@ async function sendPunishmentDM(user, type, serverName, reason, expire) {
 }
 
 function logModeration(guild, action, target, moderator, reason) {
-  const guildSettings = db.settings[guild.id];
+  const guildSettings = getGuildSettings(guild.id);
   if (!guildSettings?.modLogId) return;
   const channel = guild.channels.cache.get(guildSettings.modLogId);
   if (!channel) return;

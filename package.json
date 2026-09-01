@@ -1,7 +1,7 @@
 {
   "name": "donutt-guys-bot",
-  "version": "2.0.0",
-  "description": "Donutt Guys Advanced Multi-Feature Bot",
+  "version": "3.1.0",
+  "description": "Donutt Guys Ultimate Complex Bot with Universal Appeal Bridging",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

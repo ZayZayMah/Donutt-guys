@@ -1,12 +1,13 @@
 {
-  "name": "donutt-guys-bot",
-  "version": "4.2.0",
-  "description": "Donutt Guys Ultimate Enterprise Bot Suite",
+  "name": "donut-guys-bot",
+  "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1"
+    "discord.js": "^14.16.3",
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^16.4.5"
   }
 }
